@@ -329,6 +329,9 @@ class PotSmashGame {
         }
 
         // 뚝배기 터짐 효과
+        this.createPotExplosionEffect(pot);
+        
+        // 뚝배기 제거
         pot.classList.add('hit');
         
         // UI 업데이트
@@ -340,6 +343,48 @@ class PotSmashGame {
                 this.spawnPot();
             }
         }, 500);
+    }
+
+    createPotExplosionEffect(pot) {
+        const rect = pot.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const isGolden = pot.dataset.isGolden === 'true';
+        
+        // 파편 생성 (8-12개)
+        const fragmentCount = 8 + Math.floor(Math.random() * 5);
+        
+        for (let i = 0; i < fragmentCount; i++) {
+            const fragment = document.createElement('div');
+            fragment.className = 'pot-fragment';
+            
+            // 뚝배기 색상 상속
+            if (isGolden) {
+                fragment.style.background = 'linear-gradient(135deg, #ffd700 0%, #ffb347 100%)';
+            } else {
+                fragment.style.background = 'linear-gradient(135deg, #8b4513 0%, #654321 100%)';
+            }
+            
+            // 랜덤 방향으로 파편 날아가기
+            const angle = (i / fragmentCount) * Math.PI * 2 + Math.random() * 0.5;
+            const distance = 30 + Math.random() * 40;
+            const x = Math.cos(angle) * distance;
+            const y = Math.sin(angle) * distance;
+            
+            fragment.style.setProperty('--x', x + 'px');
+            fragment.style.setProperty('--y', y + 'px');
+            fragment.style.left = centerX + 'px';
+            fragment.style.top = centerY + 'px';
+            
+            this.particleContainer.appendChild(fragment);
+            
+            // 0.5초 후 파편 제거
+            setTimeout(() => {
+                if (fragment.parentNode) {
+                    fragment.remove();
+                }
+            }, 500);
+        }
     }
 
     createGoldenParticleEffect(pot) {
