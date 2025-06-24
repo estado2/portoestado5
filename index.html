@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>뚝배기 팡팡! 스트레스 팡팡!</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- 시작 화면 -->
+        <div id="startScreen" class="screen active">
+            <div class="container">
+                <h1 class="game-title">뚝배기 팡팡!<br>스트레스 팡팡!</h1>
+                <div class="stove-preview">
+                    <div class="stove-grid">
+                        <div class="burner"></div>
+                        <div class="burner"></div>
+                        <div class="burner"></div>
+                        <div class="burner"></div>
+                        <div class="burner"></div>
+                        <div class="burner"></div>
+                        <div class="burner"></div>
+                        <div class="burner"></div>
+                        <div class="burner"></div>
+                    </div>
+                </div>
+                <div class="login-section">
+                    <input type="text" id="playerName" placeholder="플레이어 이름을 입력하세요" maxlength="10">
+                    <button id="startGameBtn" class="btn-primary">게임 시작!</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 게임 화면 -->
+        <div id="gameScreen" class="screen">
+            <div class="game-header">
+                <div class="score-container">
+                    <span class="score-label">점수</span>
+                    <span id="score" class="score">0점</span>
+                </div>
+                <div class="timer-container">
+                    <span class="timer-label">남은 시간</span>
+                    <span id="timer" class="timer">30.00</span>
+                </div>
+                <div class="coins-container">
+                    <span class="coins-label">코인</span>
+                    <span id="coins" class="coins">0</span>
+                </div>
+            </div>
+
+            <div class="game-area">
+                <div class="stove">
+                    <div class="stove-grid" id="stoveGrid">
+                        <div class="burner" data-index="0">
+                            <div class="pot-container"></div>
+                        </div>
+                        <div class="burner" data-index="1">
+                            <div class="pot-container"></div>
+                        </div>
+                        <div class="burner" data-index="2">
+                            <div class="pot-container"></div>
+                        </div>
+                        <div class="burner" data-index="3">
+                            <div class="pot-container"></div>
+                        </div>
+                        <div class="burner" data-index="4">
+                            <div class="pot-container"></div>
+                        </div>
+                        <div class="burner" data-index="5">
+                            <div class="pot-container"></div>
+                        </div>
+                        <div class="burner" data-index="6">
+                            <div class="pot-container"></div>
+                        </div>
+                        <div class="burner" data-index="7">
+                            <div class="pot-container"></div>
+                        </div>
+                        <div class="burner" data-index="8">
+                            <div class="pot-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ranking-dashboard">
+                <h3>🏆 랭킹</h3>
+                <div id="rankingList" class="ranking-list">
+                    <!-- 랭킹 데이터가 여기에 동적으로 추가됩니다 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 게임 종료 화면 -->
+        <div id="endScreen" class="screen">
+            <div class="container">
+                <h2 class="game-over-title">게임 종료!</h2>
+                <div class="final-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">최종 점수</span>
+                        <span id="finalScore" class="stat-value">0점</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">획득 코인</span>
+                        <span id="finalCoins" class="stat-value">0개</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">황금뚝배기</span>
+                        <span id="goldenPots" class="stat-value">0개</span>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button id="playAgainBtn" class="btn-primary">다시 하기</button>
+                    <button id="backToStartBtn" class="btn-secondary">처음으로</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 파티클 효과 컨테이너 -->
+    <div id="particleContainer"></div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
