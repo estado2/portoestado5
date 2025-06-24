@@ -2,21 +2,22 @@
 class PotSmashGame {
     constructor() {
         this.score = 0;
-        this.coins = 0;
         this.goldenPots = 0;
         this.timeLeft = 30;
         this.gameActive = false;
+        this.gamePaused = false;
         this.currentPot = null;
         this.potTimeouts = [];
         this.playerName = '';
+        this.playerPassword = '';
         this.gameStartTime = null;
+        this.timerInterval = null;
         
         // 뚝배기 유지 시간 옵션 (초 단위)
         this.potDurations = [0.5, 1, 1.5, 2];
         
         this.initializeElements();
         this.bindEvents();
-        this.loadRankings();
     }
 
     initializeElements() {
@@ -24,36 +25,55 @@ class PotSmashGame {
         this.gameScreen = document.getElementById('gameScreen');
         this.endScreen = document.getElementById('endScreen');
         this.playerNameInput = document.getElementById('playerName');
+        this.playerPasswordInput = document.getElementById('playerPassword');
         this.startGameBtn = document.getElementById('startGameBtn');
         this.scoreElement = document.getElementById('score');
         this.timerElement = document.getElementById('timer');
-        this.coinsElement = document.getElementById('coins');
         this.stoveGrid = document.getElementById('stoveGrid');
         this.rankingList = document.getElementById('rankingList');
+        this.refreshRankingBtn = document.getElementById('refreshRankingBtn');
         this.finalScoreElement = document.getElementById('finalScore');
-        this.finalCoinsElement = document.getElementById('finalCoins');
         this.goldenPotsElement = document.getElementById('goldenPots');
         this.playAgainBtn = document.getElementById('playAgainBtn');
         this.backToStartBtn = document.getElementById('backToStartBtn');
         this.particleContainer = document.getElementById('particleContainer');
+        
+        // 게임 컨트롤 버튼
+        this.startBtn = document.getElementById('startBtn');
+        this.pauseBtn = document.getElementById('pauseBtn');
+        this.endBtn = document.getElementById('endBtn');
     }
 
     bindEvents() {
-        this.startGameBtn.addEventListener('click', () => this.startGame());
+        this.startGameBtn.addEventListener('click', () => this.login());
         this.playAgainBtn.addEventListener('click', () => this.playAgain());
         this.backToStartBtn.addEventListener('click', () => this.showStartScreen());
         
+        // 게임 컨트롤 버튼
+        this.startBtn.addEventListener('click', () => this.startGamePlay());
+        this.pauseBtn.addEventListener('click', () => this.pauseGame());
+        this.endBtn.addEventListener('click', () => this.endGame());
+        
+        // 랭킹 새로고침 버튼
+        this.refreshRankingBtn.addEventListener('click', () => this.refreshRankings());
+        
         // 뚝배기 클릭 이벤트
         this.stoveGrid.addEventListener('click', (e) => {
-            if (e.target.classList.contains('pot') && this.gameActive) {
+            if (e.target.classList.contains('pot') && this.gameActive && !this.gamePaused) {
                 this.hitPot(e.target);
             }
         });
 
-        // 엔터키로 게임 시작
+        // 엔터키로 로그인
         this.playerNameInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                this.startGame();
+                this.playerPasswordInput.focus();
+            }
+        });
+        
+        this.playerPasswordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.login();
             }
         });
     }
@@ -66,37 +86,131 @@ class PotSmashGame {
         
         // 지정된 화면 보이기
         document.getElementById(screenId).classList.add('active');
+        
+        // 게임 화면으로 이동할 때 랭킹 로드
+        if (screenId === 'gameScreen') {
+            this.loadRankings();
+        }
     }
 
     showStartScreen() {
         this.showScreen('startScreen');
         this.playerNameInput.focus();
+        this.resetGame();
     }
 
-    startGame() {
+    login() {
         const playerName = this.playerNameInput.value.trim();
+        const playerPassword = this.playerPasswordInput.value.trim();
+        
         if (!playerName) {
             alert('플레이어 이름을 입력해주세요!');
             return;
         }
+        
+        if (!playerPassword || playerPassword.length !== 4 || !/^\d{4}$/.test(playerPassword)) {
+            alert('비밀번호는 4자리 숫자로 입력해주세요!');
+            return;
+        }
 
         this.playerName = playerName;
-        this.resetGame();
-        this.showScreen('gameScreen');
-        this.gameActive = true;
-        this.gameStartTime = new Date();
+        this.playerPassword = playerPassword;
         
-        // 게임 시작
-        this.startTimer();
-        this.spawnPot();
+        // 로그인 처리
+        this.performLogin();
+    }
+
+    async performLogin() {
+        try {
+            const loginData = {
+                playerName: this.playerName,
+                playerPassword: this.playerPassword
+            };
+
+            // Google Apps Script 웹앱 URL (실제 배포 후 URL로 교체 필요)
+            const scriptUrl = 'https://script.google.com/macros/s/AKfycbw9LrpLMznPuqfzTQGvsSEULHNAAg7pyqOINjfjbXtYMJsxDhEifxC7-EEqZyGEc4PI/exec';
+            
+            const response = await fetch(scriptUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'login',
+                    data: loginData
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('로그인 요청 실패');
+            }
+
+            const result = await response.json();
+            
+            if (result.success) {
+                // 게임 화면으로 이동
+                this.showScreen('gameScreen');
+                this.resetGame();
+                console.log(result.message);
+            } else {
+                alert('로그인 중 오류가 발생했습니다: ' + result.error);
+            }
+        } catch (error) {
+            console.error('로그인 중 오류:', error);
+            // 오프라인 모드로 진행
+            this.showScreen('gameScreen');
+            this.resetGame();
+        }
+    }
+
+    startGamePlay() {
+        if (this.gameActive && !this.gamePaused) return;
+        
+        if (this.gamePaused) {
+            // 일시정지 해제
+            this.gamePaused = false;
+            this.startBtn.textContent = '시작';
+            this.pauseBtn.disabled = false;
+            this.startTimer();
+            this.spawnPot();
+        } else {
+            // 새 게임 시작
+            this.gameActive = true;
+            this.gamePaused = false;
+            this.gameStartTime = new Date();
+            this.startBtn.textContent = '재시작';
+            this.pauseBtn.disabled = false;
+            
+            // 게임 시작
+            this.startTimer();
+            this.spawnPot();
+        }
+    }
+
+    pauseGame() {
+        if (!this.gameActive || this.gamePaused) return;
+        
+        this.gamePaused = true;
+        this.startBtn.textContent = '재개';
+        this.pauseBtn.disabled = true;
+        
+        // 타이머 정지
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+        
+        // 뚝배기 타이머 정지
+        this.potTimeouts.forEach(timeout => clearTimeout(timeout));
+        this.potTimeouts = [];
     }
 
     resetGame() {
         this.score = 0;
-        this.coins = 0;
         this.goldenPots = 0;
         this.timeLeft = 30;
         this.gameActive = false;
+        this.gamePaused = false;
         this.currentPot = null;
         
         // 기존 뚝배기 제거
@@ -107,8 +221,14 @@ class PotSmashGame {
         this.potTimeouts.forEach(timeout => clearTimeout(timeout));
         this.potTimeouts = [];
         
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+        
         // UI 업데이트
         this.updateUI();
+        this.updateControlButtons();
     }
 
     clearAllPots() {
@@ -122,19 +242,24 @@ class PotSmashGame {
         this.particleContainer.innerHTML = '';
     }
 
+    updateControlButtons() {
+        this.startBtn.textContent = '시작';
+        this.pauseBtn.disabled = true;
+    }
+
     startTimer() {
-        const timerInterval = setInterval(() => {
-            if (!this.gameActive) {
-                clearInterval(timerInterval);
+        this.timerInterval = setInterval(() => {
+            if (!this.gameActive || this.gamePaused) {
                 return;
             }
 
             this.timeLeft -= 0.01;
             this.updateTimer();
 
+            // 무한 게임 플레이 - 시간이 0이 되어도 게임 종료하지 않음
             if (this.timeLeft <= 0) {
-                this.endGame();
-                clearInterval(timerInterval);
+                this.timeLeft = 0;
+                // 게임은 계속 진행
             }
         }, 10);
     }
@@ -144,7 +269,7 @@ class PotSmashGame {
     }
 
     spawnPot() {
-        if (!this.gameActive) return;
+        if (!this.gameActive || this.gamePaused) return;
 
         // 기존 뚝배기 제거
         this.clearAllPots();
@@ -169,11 +294,18 @@ class PotSmashGame {
         
         // 뚝배기 자동 사라짐
         const timeout = setTimeout(() => {
-            if (potContainer.contains(pot)) {
+            if (potContainer.contains(pot) && this.gameActive && !this.gamePaused) {
                 potContainer.classList.remove('show');
                 setTimeout(() => {
-                    potContainer.innerHTML = '';
+                    if (potContainer.contains(pot)) {
+                        potContainer.innerHTML = '';
+                    }
                 }, 300);
+                
+                // 다음 뚝배기 생성
+                if (this.gameActive && !this.gamePaused) {
+                    this.spawnPot();
+                }
             }
         }, duration * 1000);
 
@@ -182,14 +314,13 @@ class PotSmashGame {
     }
 
     hitPot(pot) {
-        if (!this.gameActive || !pot) return;
+        if (!this.gameActive || this.gamePaused || !pot) return;
 
         const isGolden = pot.dataset.isGolden === 'true';
         
         // 점수 추가
         if (isGolden) {
             this.score += 5;
-            this.coins += 1;
             this.goldenPots += 1;
             this.timeLeft += 5; // 시간 5초 추가
             this.createGoldenParticleEffect(pot);
@@ -205,7 +336,9 @@ class PotSmashGame {
 
         // 0.5초 후 다음 뚝배기 생성
         setTimeout(() => {
-            this.spawnPot();
+            if (this.gameActive && !this.gamePaused) {
+                this.spawnPot();
+            }
         }, 500);
     }
 
@@ -247,11 +380,11 @@ class PotSmashGame {
     updateUI() {
         this.scoreElement.textContent = `${this.score}점`;
         this.timerElement.textContent = this.timeLeft.toFixed(2);
-        this.coinsElement.textContent = this.coins;
     }
 
     async endGame() {
         this.gameActive = false;
+        this.gamePaused = false;
         
         // 기존 뚝배기 제거
         this.clearAllPots();
@@ -260,6 +393,11 @@ class PotSmashGame {
         // 타이머 정리
         this.potTimeouts.forEach(timeout => clearTimeout(timeout));
         this.potTimeouts = [];
+        
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
 
         // 게임 결과 저장
         await this.saveGameResult();
@@ -273,13 +411,13 @@ class PotSmashGame {
 
     showEndScreen() {
         this.finalScoreElement.textContent = `${this.score}점`;
-        this.finalCoinsElement.textContent = `${this.coins}개`;
         this.goldenPotsElement.textContent = `${this.goldenPots}개`;
         this.showScreen('endScreen');
     }
 
     playAgain() {
-        this.startGame();
+        this.showScreen('gameScreen');
+        this.resetGame();
     }
 
     // 구글 스프레드시트 연동
@@ -287,15 +425,15 @@ class PotSmashGame {
         try {
             const gameData = {
                 playerName: this.playerName,
+                playerPassword: this.playerPassword,
                 score: this.score,
-                coins: this.coins,
                 goldenPots: this.goldenPots,
                 playTime: 30 - this.timeLeft,
                 timestamp: new Date().toISOString()
             };
 
             // Google Apps Script 웹앱 URL (실제 배포 후 URL로 교체 필요)
-            const scriptUrl = 'https://script.google.com/macros/s/AKfycbxRQSX2bRV5cDbs-LT-wiVfO2Hdu9DDqHHvBLTajcWdt0of3cbR68xPUSEhGMAJcmhB/exec';
+            const scriptUrl = 'https://script.google.com/macros/s/AKfycbw9LrpLMznPuqfzTQGvsSEULHNAAg7pyqOINjfjbXtYMJsxDhEifxC7-EEqZyGEc4PI/exec';
             
             const response = await fetch(scriptUrl, {
                 method: 'POST',
@@ -319,21 +457,50 @@ class PotSmashGame {
     async loadRankings() {
         try {
             // Google Apps Script 웹앱 URL (실제 배포 후 URL로 교체 필요)
-            const scriptUrl = 'https://script.google.com/macros/s/AKfycbxRQSX2bRV5cDbs-LT-wiVfO2Hdu9DDqHHvBLTajcWdt0of3cbR68xPUSEhGMAJcmhB/exec';
+            const scriptUrl = 'https://script.google.com/macros/s/AKfycbw9LrpLMznPuqfzTQGvsSEULHNAAg7pyqOINjfjbXtYMJsxDhEifxC7-EEqZyGEc4PI/exec';
             
             const response = await fetch(`${scriptUrl}?action=getRankings`);
-            const rankings = await response.json();
-
-            this.displayRankings(rankings);
+            
+            if (!response.ok) {
+                throw new Error('랭킹 데이터 요청 실패');
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.displayRankings(result.rankings);
+            } else {
+                throw new Error(result.error || '랭킹 데이터 로드 실패');
+            }
         } catch (error) {
             console.error('랭킹 로드 중 오류:', error);
-            // 오프라인 모드용 더미 데이터
-            this.displayRankings(this.getDummyRankings());
+            this.displayEmptyRankings();
+        }
+    }
+
+    async refreshRankings() {
+        // 새로고침 버튼 비활성화
+        this.refreshRankingBtn.disabled = true;
+        this.refreshRankingBtn.textContent = '🔄 로딩중...';
+        
+        try {
+            await this.loadRankings();
+        } catch (error) {
+            console.error('랭킹 새로고침 중 오류:', error);
+        } finally {
+            // 새로고침 버튼 활성화
+            this.refreshRankingBtn.disabled = false;
+            this.refreshRankingBtn.textContent = '🔄 새로고침';
         }
     }
 
     displayRankings(rankings) {
         this.rankingList.innerHTML = '';
+        
+        if (!rankings || rankings.length === 0) {
+            this.displayEmptyRankings();
+            return;
+        }
         
         rankings.forEach((player, index) => {
             const rankingItem = document.createElement('div');
@@ -359,14 +526,13 @@ class PotSmashGame {
         });
     }
 
-    getDummyRankings() {
-        return [
-            { name: '플레이어1', score: 45, goldenPots: 3, totalGames: 5 },
-            { name: '플레이어2', score: 38, goldenPots: 2, totalGames: 3 },
-            { name: '플레이어3', score: 32, goldenPots: 1, totalGames: 4 },
-            { name: '플레이어4', score: 28, goldenPots: 0, totalGames: 2 },
-            { name: '플레이어5', score: 25, goldenPots: 1, totalGames: 3 }
-        ];
+    displayEmptyRankings() {
+        this.rankingList.innerHTML = `
+            <div class="ranking-item empty">
+                아직 게임 기록이 없습니다.<br>
+                첫 번째 게임을 플레이해보세요!
+            </div>
+        `;
     }
 }
 

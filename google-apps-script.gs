@@ -11,6 +11,8 @@ function doPost(e) {
     switch(action) {
       case 'saveGameResult':
         return saveGameResult(data.data);
+      case 'login':
+        return loginUser(data.data);
       default:
         return ContentService.createTextOutput(JSON.stringify({
           success: false,
@@ -47,6 +49,76 @@ function doGet(e) {
   }
 }
 
+// 사용자 로그인
+function loginUser(loginData) {
+  try {
+    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const userDataSheet = spreadsheet.getSheetByName('userdata');
+    
+    if (!userDataSheet) {
+      throw new Error('userdata 시트를 찾을 수 없습니다.');
+    }
+    
+    const data = userDataSheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    // 컬럼 인덱스 찾기
+    const nameCol = headers.indexOf('name');
+    const passwordCol = headers.indexOf('password');
+    
+    if (nameCol === -1 || passwordCol === -1) {
+      throw new Error('필수 컬럼을 찾을 수 없습니다.');
+    }
+    
+    // 사용자 찾기
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][nameCol] === loginData.playerName && data[i][passwordCol] === loginData.playerPassword) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          message: '로그인 성공',
+          userData: {
+            name: data[i][nameCol],
+            totalScore: data[i][headers.indexOf('totalScore')] || 0,
+            totalGoldenPots: data[i][headers.indexOf('totalGoldenPots')] || 0,
+            totalGames: data[i][headers.indexOf('totalGames')] || 0,
+            bestScore: data[i][headers.indexOf('bestScore')] || 0
+          }
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+    
+    // 새 사용자 등록
+    const newUserData = new Array(headers.length).fill('');
+    newUserData[nameCol] = loginData.playerName;
+    newUserData[passwordCol] = loginData.playerPassword;
+    newUserData[headers.indexOf('totalScore')] = 0;
+    newUserData[headers.indexOf('totalGoldenPots')] = 0;
+    newUserData[headers.indexOf('totalGames')] = 0;
+    newUserData[headers.indexOf('bestScore')] = 0;
+    newUserData[headers.indexOf('lastPlayed')] = new Date().toISOString();
+    
+    userDataSheet.appendRow(newUserData);
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      message: '새 사용자가 등록되었습니다.',
+      userData: {
+        name: loginData.playerName,
+        totalScore: 0,
+        totalGoldenPots: 0,
+        totalGames: 0,
+        bestScore: 0
+      }
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 // 게임 결과 저장
 function saveGameResult(gameData) {
   try {
@@ -62,7 +134,6 @@ function saveGameResult(gameData) {
       gameData.timestamp,
       gameData.playerName,
       gameData.score,
-      gameData.coins,
       gameData.goldenPots,
       gameData.playTime
     ];
@@ -100,8 +171,8 @@ function updateUserData(gameData) {
     
     // 컬럼 인덱스 찾기
     const nameCol = headers.indexOf('name');
+    const passwordCol = headers.indexOf('password');
     const totalScoreCol = headers.indexOf('totalScore');
-    const totalCoinsCol = headers.indexOf('totalCoins');
     const totalGoldenPotsCol = headers.indexOf('totalGoldenPots');
     const totalGamesCol = headers.indexOf('totalGames');
     const bestScoreCol = headers.indexOf('bestScore');
@@ -114,7 +185,7 @@ function updateUserData(gameData) {
     // 기존 사용자 찾기
     let userRowIndex = -1;
     for (let i = 1; i < data.length; i++) {
-      if (data[i][nameCol] === gameData.playerName) {
+      if (data[i][nameCol] === gameData.playerName && data[i][passwordCol] === gameData.playerPassword) {
         userRowIndex = i + 1; // 시트는 1부터 시작
         break;
       }
@@ -124,8 +195,8 @@ function updateUserData(gameData) {
       // 새 사용자 추가
       const newUserData = new Array(headers.length).fill('');
       newUserData[nameCol] = gameData.playerName;
+      newUserData[passwordCol] = gameData.playerPassword;
       newUserData[totalScoreCol] = gameData.score;
-      newUserData[totalCoinsCol] = gameData.coins;
       newUserData[totalGoldenPotsCol] = gameData.goldenPots;
       newUserData[totalGamesCol] = 1;
       newUserData[bestScoreCol] = gameData.score;
@@ -135,13 +206,11 @@ function updateUserData(gameData) {
     } else {
       // 기존 사용자 업데이트
       const currentTotalScore = data[userRowIndex - 1][totalScoreCol] || 0;
-      const currentTotalCoins = data[userRowIndex - 1][totalCoinsCol] || 0;
       const currentTotalGoldenPots = data[userRowIndex - 1][totalGoldenPotsCol] || 0;
       const currentTotalGames = data[userRowIndex - 1][totalGamesCol] || 0;
       const currentBestScore = data[userRowIndex - 1][bestScoreCol] || 0;
       
       userDataSheet.getRange(userRowIndex, totalScoreCol + 1).setValue(currentTotalScore + gameData.score);
-      userDataSheet.getRange(userRowIndex, totalCoinsCol + 1).setValue(currentTotalCoins + gameData.coins);
       userDataSheet.getRange(userRowIndex, totalGoldenPotsCol + 1).setValue(currentTotalGoldenPots + gameData.goldenPots);
       userDataSheet.getRange(userRowIndex, totalGamesCol + 1).setValue(currentTotalGames + 1);
       userDataSheet.getRange(userRowIndex, bestScoreCol + 1).setValue(Math.max(currentBestScore, gameData.score));
@@ -213,7 +282,7 @@ function setupSpreadsheet() {
     if (!userDataSheet) {
       userDataSheet = spreadsheet.insertSheet('userdata');
       userDataSheet.getRange(1, 1, 1, 7).setValues([
-        ['name', 'totalScore', 'totalCoins', 'totalGoldenPots', 'totalGames', 'bestScore', 'lastPlayed']
+        ['name', 'password', 'totalScore', 'totalGoldenPots', 'totalGames', 'bestScore', 'lastPlayed']
       ]);
     }
     
@@ -221,8 +290,8 @@ function setupSpreadsheet() {
     let gameHistorySheet = spreadsheet.getSheetByName('gamehistory');
     if (!gameHistorySheet) {
       gameHistorySheet = spreadsheet.insertSheet('gamehistory');
-      gameHistorySheet.getRange(1, 1, 1, 6).setValues([
-        ['timestamp', 'playerName', 'score', 'coins', 'goldenPots', 'playTime']
+      gameHistorySheet.getRange(1, 1, 1, 5).setValues([
+        ['timestamp', 'playerName', 'score', 'goldenPots', 'playTime']
       ]);
     }
     
